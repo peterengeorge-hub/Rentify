@@ -2,15 +2,21 @@ package com.vrs.ui;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.*;
+import java.sql.SQLException;
 
-public class VehiclePanel extends JPanel {
+import com.vrs.model.Vehicle;
+import com.vrs.dao.VehicleDAO;
+public class VehiclePanel extends JPanel implements ActionListener{
 
     JTextField make = new JTextField();
     JTextField model = new JTextField();
     JTextField regNo = new JTextField();
     JTextField rate = new JTextField();
     JTextField search = new JTextField(10);
-
+    JTextField insuranceExpiry = new JTextField();
+    JTextField registrationExpiry = new JTextField();
+    
     JComboBox<String> type = new JComboBox<>(
             new String[]{"Sedan", "SUV", "Hatchback", "Van", "Bike"});
 
@@ -24,14 +30,16 @@ public class VehiclePanel extends JPanel {
     JButton updateButton = new JButton("Update");
     JButton deleteButton = new JButton("Delete");
     JButton clearButton = new JButton("Clear");
-
     JTable table;
     DefaultTableModel tableModel;
 
     public VehiclePanel() {
-
+    	addButton.addActionListener(this);
+    	updateButton.addActionListener(this);
+    	deleteButton.addActionListener(this);
+    	clearButton.addActionListener(this);
+    	
         setLayout(new BorderLayout(10, 10));
-
         JPanel top = new JPanel();
 
         top.add(new JLabel("Vehicle Management"));
@@ -69,6 +77,12 @@ public class VehiclePanel extends JPanel {
         form.add(new JLabel("Daily Rate"));
         form.add(rate);
         
+        form.add(new JLabel("Insurance Expiry"));
+        form.add(insuranceExpiry);
+
+        form.add(new JLabel("Registration Expiry"));
+        form.add(registrationExpiry);
+        
         form.add(new JLabel("Status"));
         form.add(status);
         form.add(addButton);
@@ -78,5 +92,24 @@ public class VehiclePanel extends JPanel {
 
         add(form, BorderLayout.SOUTH);
     }
-
+public void actionPerformed(ActionEvent e) {
+	if(e.getSource()==addButton) {
+		Vehicle v = new Vehicle(0,
+			    make.getText(),
+			    model.getText(),
+			    type.getSelectedItem().toString(),
+			    regNo.getText(),
+			    Double.parseDouble(rate.getText()),
+			    status.getSelectedItem().toString(),
+			    insuranceExpiry.getText(),
+			    registrationExpiry.getText() );
+		        VehicleDAO ob = new VehicleDAO();
+		        try {
+		        ob.addVehicle(v);}
+		        catch(SQLException er) {
+		        er.printStackTrace();
+		        }
+	}
+	
+}
 }
