@@ -1,4 +1,4 @@
-package com.vrs.billing;
+package com.vrs.ui;
 
 import javax.swing.*;
 

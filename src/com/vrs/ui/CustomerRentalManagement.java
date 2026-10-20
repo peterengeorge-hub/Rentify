@@ -1,4 +1,4 @@
-package customer_rental;
+package com.vrs.ui;
 import javax.swing.*;
 import java.awt.*;
 public class CustomerRentalManagement extends JFrame {
