@@ -105,8 +105,11 @@ public class CustomerRentalManagement extends JPanel implements ActionListener {
 
         try {
             Customer customer = new Customer(
-                    0, name.getText().trim(), phone.getText().trim(),
-                    email.getText().trim(), licenseNumber.getText().trim()
+                    0,
+                    name.getText().trim(),
+                    phone.getText().trim(),
+                    email.getText().trim(),
+                    licenseNumber.getText().trim()
             );
 
             customer.setCustomerId(customerDAO.addCustomer(customer));
@@ -123,6 +126,7 @@ public class CustomerRentalManagement extends JPanel implements ActionListener {
             JOptionPane.showMessageDialog(this, "Select a customer to update.");
             return;
         }
+
         if (!isFormValid()) {
             return;
         }
@@ -130,8 +134,11 @@ public class CustomerRentalManagement extends JPanel implements ActionListener {
         try {
             int id = (int) tableModel.getValueAt(row, 0);
             Customer customer = new Customer(
-                    id, name.getText().trim(), phone.getText().trim(),
-                    email.getText().trim(), licenseNumber.getText().trim()
+                    id,
+                    name.getText().trim(),
+                    phone.getText().trim(),
+                    email.getText().trim(),
+                    licenseNumber.getText().trim()
             );
 
             customerDAO.updateCustomer(customer);
@@ -213,30 +220,31 @@ public class CustomerRentalManagement extends JPanel implements ActionListener {
     }
 
     private boolean isFormValid() {
-    	if (!phone.getText().trim().matches("\\d{10}")) {
-    	    JOptionPane.showMessageDialog(this, "Phone number must be exactly 10 digits.");
-    	    return false;
-    	}
+        if (!phone.getText().trim().matches("\\d{10}")) {
+            JOptionPane.showMessageDialog(this, "Phone number must be exactly 10 digits.");
+            return false;
+        }
 
-    	String emailText = email.getText().trim();
-    	if (!emailText.isEmpty()
-    	        && !emailText.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) {
-    	    JOptionPane.showMessageDialog(this, "Please enter a valid email address.");
-    	    return false;
-    	}
-    	    String license = licenseNumber.getText()
-    	            .trim()
-    	            .toUpperCase()
-    	            .replaceAll("[\\s/-]", "");
+        String emailText = email.getText().trim();
+        if (!emailText.isEmpty()
+                && !emailText.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) {
+            JOptionPane.showMessageDialog(this, "Please enter a valid email address.");
+            return false;
+        }
 
-    	    if (!license.matches("[A-Z0-9]{8,20}")) {
-    	        JOptionPane.showMessageDialog(
-    	                this,
-    	                "Enter a valid licence number (8–20 letters or digits)."
-    	        );
-    	        return false;
-    	    
-    	}
+        String license = licenseNumber.getText()
+                .trim()
+                .toUpperCase()
+                .replaceAll("[\\s/-]", "");
+
+        if (!license.matches("[A-Z0-9]{8,20}")) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Enter a valid licence number (8–20 letters or digits)."
+            );
+            return false;
+        }
+
         return true;
     }
 
@@ -255,15 +263,5 @@ public class CustomerRentalManagement extends JPanel implements ActionListener {
                 "Database Error",
                 JOptionPane.ERROR_MESSAGE
         );
-    }
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            JFrame frame = new JFrame("Customer Management");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.setContentPane(new CustomerRentalManagement());
-            frame.setSize(900, 600);
-            frame.setLocationRelativeTo(null);
-            frame.setVisible(true);
-        });
     }
 }
