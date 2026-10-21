@@ -55,20 +55,58 @@ public class ProfitPanel extends JPanel implements ActionListener {
         };
         table = new JTable(tableModel);
         add(new JScrollPane(table), BorderLayout.CENTER);
+        JPanel form = new JPanel(new GridBagLayout());
+        GridBagConstraints c = new GridBagConstraints();
+        c.insets = new Insets(5, 5, 5, 5);
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.weighty = 0;
 
-        JPanel form = new JPanel(new GridLayout(2, 5, 10, 10));
-        form.add(new JLabel("Vehicle"));
-        form.add(vehicleBox);
-        form.add(new JLabel("Description"));
-        form.add(descField);
-        form.add(new JLabel("Amount"));
-        form.add(amountField);
-        form.add(new JLabel("Date (yyyy-MM-dd)"));
-        form.add(dateField);
-        form.add(addExpenseButton);
-        form.add(refreshButton);
+        // Row 1
+        c.gridy = 0;
+
+        c.gridx = 0;
+        c.weightx = 0;
+        form.add(new JLabel("Vehicle"), c);
+
+        c.gridx = 1;
+        c.weightx = 1;
+        form.add(vehicleBox, c);
+
+        c.gridx = 2;
+        c.weightx = 0;
+        form.add(new JLabel("Description"), c);
+
+        c.gridx = 3;
+        c.weightx = 2;
+        form.add(descField, c);
+
+        // Row 2
+        c.gridy = 1;
+
+        c.gridx = 0;
+        c.weightx = 0;
+        form.add(new JLabel("Amount"), c);
+
+        c.gridx = 1;
+        c.weightx = 1;
+        form.add(amountField, c);
+
+        c.gridx = 2;
+        c.weightx = 0;
+        form.add(new JLabel("Date (yyyy-MM-dd)"), c);
+
+        c.gridx = 3;
+        c.weightx = 1;
+        form.add(dateField, c);
+
+        c.gridx = 4;
+        c.weightx = 0;
+        form.add(addExpenseButton, c);
+
+        c.gridx = 5;
+        form.add(refreshButton, c);
+
         add(form, BorderLayout.SOUTH);
-
         addExpenseButton.addActionListener(this);
         refreshButton.addActionListener(this);
 
