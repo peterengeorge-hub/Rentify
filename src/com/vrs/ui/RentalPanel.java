@@ -9,165 +9,305 @@ import com.vrs.util.DBConnection;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.sql.*;
-import java.text.SimpleDateFormat;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.text.ParseException;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class RentalPanel extends JPanel implements ActionListener {
+public class RentalPanel extends JPanel {
 
-    private JComboBox<String> vehicleBox = new JComboBox<>();
-    private JComboBox<String> customerBox = new JComboBox<>();
-    private JSpinner startSpinner;
-    private JSpinner endSpinner;
+    private static final DateTimeFormatter DISPLAY_DATE =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    private JButton createButton = new JButton("Create Rental");
-    private JButton returnButton = new JButton("Return Vehicle");
-    private JButton refreshButton = new JButton("Refresh");
+    private static final DateTimeFormatter DATABASE_DATE =
+            DateTimeFormatter.ISO_LOCAL_DATE;
 
-    private DefaultTableModel tableModel;
-    private JTable table;
+    private final JComboBox<String> vehicleBox = new JComboBox<>();
+    private final JComboBox<String> customerBox = new JComboBox<>();
 
-    private RentalDAO rentalDAO = new RentalDAO();
-    private CustomerDAO customerDAO = new CustomerDAO();
+    private final JSpinner startSpinner;
+    private final JSpinner endSpinner;
+    private final JSpinner returnDateSpinner;
 
-    private Map<String, Integer> vehicleMap = new HashMap<>();
-    private Map<String, Integer> customerMap = new HashMap<>();
+    private final JButton createButton = new JButton("Create Rental");
+    private final JButton returnButton = new JButton("Return Vehicle");
+    private final JButton refreshButton = new JButton("Refresh");
+
+    private final DefaultTableModel tableModel = new DefaultTableModel(
+            new String[]{
+                    "Rental ID",
+                    "Vehicle ID",
+                    "Customer ID",
+                    "Start",
+                    "End",
+                    "Return Date",
+                    "Total Charge",
+                    "Late Fee",
+                    "Status"
+            },
+            0
+    ) {
+        @Override
+        public boolean isCellEditable(int row, int column) {
+            return false;
+        }
+    };
+
+    private final JTable table = new JTable(tableModel);
+    private final RentalDAO rentalDAO = new RentalDAO();
+    private final CustomerDAO customerDAO = new CustomerDAO();
+
+    private final Map<String, Integer> vehicleMap = new HashMap<>();
+    private final Map<String, Integer> customerMap = new HashMap<>();
 
     public RentalPanel() {
         setLayout(new BorderLayout(10, 10));
 
-        SpinnerDateModel startModel = new SpinnerDateModel(new Date(), null, null, java.util.Calendar.DAY_OF_MONTH);
-        SpinnerDateModel endModel = new SpinnerDateModel(new Date(), null, null, java.util.Calendar.DAY_OF_MONTH);
-        startSpinner = new JSpinner(startModel);
-        endSpinner = new JSpinner(endModel);
-        startSpinner.setEditor(new JSpinner.DateEditor(startSpinner, "yyyy-MM-dd"));
-        endSpinner.setEditor(new JSpinner.DateEditor(endSpinner, "yyyy-MM-dd"));
+        Date today = new Date();
 
+        startSpinner = new JSpinner(new SpinnerDateModel(
+                today, null, null, java.util.Calendar.DAY_OF_MONTH));
+
+        endSpinner = new JSpinner(new SpinnerDateModel(
+                today, null, null, java.util.Calendar.DAY_OF_MONTH));
+
+        returnDateSpinner = new JSpinner(new SpinnerDateModel(
+                today, null, null, java.util.Calendar.DAY_OF_MONTH));
+
+        startSpinner.setEditor(
+                new JSpinner.DateEditor(startSpinner, "dd/MM/yyyy"));
+        endSpinner.setEditor(
+                new JSpinner.DateEditor(endSpinner, "dd/MM/yyyy"));
+        returnDateSpinner.setEditor(
+                new JSpinner.DateEditor(returnDateSpinner, "dd/MM/yyyy"));
+
+        JLabel title = new JLabel("Rental Management");
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        top.add(new JLabel("Rental Management"));
+        top.add(title);
         add(top, BorderLayout.NORTH);
 
-        String[] cols = {"Rental ID", "Vehicle ID", "Customer ID", "Start", "End",
-                "Return Date", "Total Charge", "Late Fee", "Status"};
-        tableModel = new DefaultTableModel(cols, 0) {
-            public boolean isCellEditable(int r, int c) {
-                return false;
-            }
-        };
-        table = new JTable(tableModel);
         add(new JScrollPane(table), BorderLayout.CENTER);
 
-        JPanel form = new JPanel(new GridLayout(3, 4, 10, 10));
+        JPanel form = new JPanel(new GridLayout(4, 4, 10, 10));
+
         form.add(new JLabel("Vehicle (Available)"));
         form.add(vehicleBox);
         form.add(new JLabel("Customer"));
         form.add(customerBox);
+
         form.add(new JLabel("Start Date"));
         form.add(startSpinner);
         form.add(new JLabel("End Date"));
         form.add(endSpinner);
+
+        form.add(new JLabel("Actual Return Date"));
+        form.add(returnDateSpinner);
+        form.add(new JLabel(""));
+        form.add(new JLabel(""));
+
         form.add(createButton);
         form.add(returnButton);
         form.add(refreshButton);
         form.add(new JLabel(""));
+
         add(form, BorderLayout.SOUTH);
 
-        createButton.addActionListener(this);
-        returnButton.addActionListener(this);
-        refreshButton.addActionListener(this);
+        createButton.addActionListener(event -> createRental());
+        returnButton.addActionListener(event -> returnVehicle());
+        refreshButton.addActionListener(event -> refreshData());
 
-        loadDropdowns();
-        loadTable();
-    }
-
-    public void actionPerformed(ActionEvent e) {
-        if (e.getSource() == createButton) {
-            createRental();
-        } else if (e.getSource() == returnButton) {
-            returnVehicle();
-        } else if (e.getSource() == refreshButton) {
-            loadDropdowns();
-            loadTable();
-        }
+        refreshData();
     }
 
     private void createRental() {
-        if (vehicleBox.getSelectedItem() == null || customerBox.getSelectedItem() == null) {
-            JOptionPane.showMessageDialog(this, "Select vehicle and customer");
+        Integer vehicleId = vehicleMap.get(vehicleBox.getSelectedItem());
+        Integer customerId = customerMap.get(customerBox.getSelectedItem());
+
+        if (vehicleId == null || customerId == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Select an available vehicle and a customer."
+            );
             return;
         }
 
         try {
-            String vKey = vehicleBox.getSelectedItem().toString();
-            String cKey = customerBox.getSelectedItem().toString();
-            int vehicleId = vehicleMap.get(vKey);
-            int customerId = customerMap.get(cKey);
+            startSpinner.commitEdit();
+            endSpinner.commitEdit();
 
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-            String start = sdf.format((Date) startSpinner.getValue());
-            String end = sdf.format((Date) endSpinner.getValue());
+            LocalDate startDate =
+                    toLocalDate((Date) startSpinner.getValue());
+            LocalDate endDate =
+                    toLocalDate((Date) endSpinner.getValue());
 
-            if (LocalDate.parse(end).isBefore(LocalDate.parse(start))) {
-                JOptionPane.showMessageDialog(this, "End date cannot be before start date");
+            if (endDate.isBefore(startDate)) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "End date cannot be before start date."
+                );
                 return;
             }
 
-            Rental r = new Rental(0, vehicleId, customerId, start, end, null, 0, 0, "Active");
-            int id = rentalDAO.createRental(r);
-            r.setRentalId(id);
+            String startForDatabase = startDate.format(DATABASE_DATE);
+            String endForDatabase = endDate.format(DATABASE_DATE);
 
-            loadDropdowns();
-            loadTable();
-            JOptionPane.showMessageDialog(this, "Rental created. ID: " + id);
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage(),
-                    "Database Error", JOptionPane.ERROR_MESSAGE);
+            Rental rental = new Rental(
+                    0,
+                    vehicleId,
+                    customerId,
+                    startForDatabase,
+                    endForDatabase,
+                    null,
+                    0,
+                    0,
+                    "Active"
+            );
+
+            int rentalId = rentalDAO.createRental(rental);
+
+            refreshData();
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Rental created. ID: " + rentalId
+            );
+
+        } catch (ParseException exception) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Enter the start and end dates in dd/MM/yyyy format."
+            );
+        } catch (SQLException exception) {
+            showDatabaseError("Could not create rental", exception);
         }
     }
 
     private void returnVehicle() {
-        int row = table.getSelectedRow();
-        if (row == -1) {
-            JOptionPane.showMessageDialog(this, "Select an active rental first");
+        int selectedViewRow = table.getSelectedRow();
+
+        if (selectedViewRow < 0) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Select an active rental first."
+            );
             return;
         }
 
-        String status = tableModel.getValueAt(row, 8).toString();
-        if (!"Active".equals(status)) {
-            JOptionPane.showMessageDialog(this, "Only active rentals can be returned");
+        int row = table.convertRowIndexToModel(selectedViewRow);
+
+        if (!"Active".equalsIgnoreCase(valueAt(row, 8))) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Only active rentals can be returned."
+            );
             return;
         }
 
-        int rentalId = (int) tableModel.getValueAt(row, 0);
-        String today = LocalDate.now().toString();
+        int rentalId;
+        try {
+            rentalId = ((Number) tableModel.getValueAt(row, 0)).intValue();
+        } catch (RuntimeException exception) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "The selected rental has an invalid ID."
+            );
+            return;
+        }
 
         try {
-            rentalDAO.closeRental(rentalId, today);
+            returnDateSpinner.commitEdit();
 
-            // simple receipt
+            LocalDate returnDate =
+                    toLocalDate((Date) returnDateSpinner.getValue());
+
+            LocalDate startDate = LocalDate.parse(
+                    valueAt(row, 3),
+                    DISPLAY_DATE
+            );
+
+            if (returnDate.isBefore(startDate)) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Return date cannot be before the rental start date."
+                );
+                return;
+            }
+
+            if (returnDate.isAfter(LocalDate.now())) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Return date cannot be in the future."
+                );
+                return;
+            }
+
+            String returnDateForDatabase =
+                    returnDate.format(DATABASE_DATE);
+
+            String vehicleId = valueAt(row, 1);
+            String customerId = valueAt(row, 2);
+            String plannedStart = valueAt(row, 3);
+            String plannedEnd = valueAt(row, 4);
+
+            int answer = JOptionPane.showConfirmDialog(
+                    this,
+                    "Return rental " + rentalId + " on "
+                            + returnDate.format(DISPLAY_DATE) + "?",
+                    "Confirm Return",
+                    JOptionPane.YES_NO_OPTION
+            );
+
+            if (answer != JOptionPane.YES_OPTION) {
+                return;
+            }
+
+            rentalDAO.closeRental(rentalId, returnDateForDatabase);
+            refreshData();
+
             String receipt = "===== RECEIPT =====\n"
                     + "Rental ID: " + rentalId + "\n"
-                    + "Vehicle ID: " + tableModel.getValueAt(row, 1) + "\n"
-                    + "Customer ID: " + tableModel.getValueAt(row, 2) + "\n"
-                    + "Start: " + tableModel.getValueAt(row, 3) + "\n"
-                    + "Planned End: " + tableModel.getValueAt(row, 4) + "\n"
-                    + "Actual Return: " + today + "\n"
+                    + "Vehicle ID: " + vehicleId + "\n"
+                    + "Customer ID: " + customerId + "\n"
+                    + "Start: " + plannedStart + "\n"
+                    + "Planned End: " + plannedEnd + "\n"
+                    + "Actual Return: "
+                    + returnDate.format(DISPLAY_DATE) + "\n"
                     + "===================";
 
-            JOptionPane.showMessageDialog(this, receipt, "Return Receipt", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(
+                    this,
+                    receipt,
+                    "Return Receipt",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
 
-            loadDropdowns();
-            loadTable();
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage(),
-                    "Database Error", JOptionPane.ERROR_MESSAGE);
+        } catch (ParseException exception) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Enter a valid return date in dd/MM/yyyy format."
+            );
+        } catch (DateTimeParseException exception) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Could not read a rental date. Refresh the table and try again."
+            );
+        } catch (SQLException exception) {
+            showDatabaseError("Could not return vehicle", exception);
         }
+    }
+
+    private void refreshData() {
+        loadDropdowns();
+        loadTable();
     }
 
     private void loadDropdowns() {
@@ -176,51 +316,102 @@ public class RentalPanel extends JPanel implements ActionListener {
         vehicleMap.clear();
         customerMap.clear();
 
-        try (Connection con = DBConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement(
-                     "SELECT vehicle_id, make, model, reg_number FROM vehicles WHERE status = 'Available'");
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                String label = rs.getInt("vehicle_id") + " - " + rs.getString("make")
-                        + " " + rs.getString("model") + " (" + rs.getString("reg_number") + ")";
+        String vehicleSql = """
+                SELECT vehicle_id, make, model, reg_number
+                FROM vehicles
+                WHERE status = 'Available'
+                ORDER BY vehicle_id
+                """;
+
+        try (Connection connection = DBConnection.getConnection();
+             PreparedStatement statement =
+                     connection.prepareStatement(vehicleSql);
+             ResultSet results = statement.executeQuery()) {
+
+            while (results.next()) {
+                int vehicleId = results.getInt("vehicle_id");
+
+                String label = vehicleId + " - "
+                        + results.getString("make") + " "
+                        + results.getString("model") + " ("
+                        + results.getString("reg_number") + ")";
+
                 vehicleBox.addItem(label);
-                vehicleMap.put(label, rs.getInt("vehicle_id"));
+                vehicleMap.put(label, vehicleId);
             }
-        } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Failed to load vehicles: " + ex.getMessage());
+        } catch (SQLException exception) {
+            showDatabaseError("Failed to load available vehicles", exception);
         }
 
         try {
             List<Customer> customers = customerDAO.getAllCustomers();
-            for (Customer c : customers) {
-                String label = c.getCustomerId() + " - " + c.getName();
+
+            for (Customer customer : customers) {
+                String label = customer.getCustomerId()
+                        + " - " + customer.getName();
+
                 customerBox.addItem(label);
-                customerMap.put(label, c.getCustomerId());
+                customerMap.put(label, customer.getCustomerId());
             }
-        } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Failed to load customers: " + ex.getMessage());
+        } catch (SQLException exception) {
+            showDatabaseError("Failed to load customers", exception);
         }
     }
 
     private void loadTable() {
         tableModel.setRowCount(0);
+
         try {
-            List<Rental> list = rentalDAO.getAllRentals();
-            for (Rental r : list) {
+            List<Rental> rentals = rentalDAO.getAllRentals();
+
+            for (Rental rental : rentals) {
                 tableModel.addRow(new Object[]{
-                        r.getRentalId(),
-                        r.getVehicleId(),
-                        r.getCustomerId(),
-                        r.getStartDate(),
-                        r.getEndDate(),
-                        r.getActualReturnDate() == null ? "" : r.getActualReturnDate(),
-                        r.getTotalCharge(),
-                        r.getLateFee(),
-                        r.getStatus()
+                        rental.getRentalId(),
+                        rental.getVehicleId(),
+                        rental.getCustomerId(),
+                        formatDatabaseDate(rental.getStartDate()),
+                        formatDatabaseDate(rental.getEndDate()),
+                        formatDatabaseDate(rental.getActualReturnDate()),
+                        rental.getTotalCharge(),
+                        rental.getLateFee(),
+                        rental.getStatus()
                 });
             }
-        } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Failed to load rentals: " + ex.getMessage());
+        } catch (SQLException exception) {
+            showDatabaseError("Failed to load rentals", exception);
         }
+    }
+
+    private LocalDate toLocalDate(Date date) {
+        return date.toInstant()
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate();
+    }
+
+    private String formatDatabaseDate(String date) {
+        if (date == null || date.isBlank()) {
+            return "";
+        }
+
+        try {
+            return LocalDate.parse(date, DATABASE_DATE)
+                    .format(DISPLAY_DATE);
+        } catch (DateTimeParseException exception) {
+            return date;
+        }
+    }
+
+    private String valueAt(int row, int column) {
+        Object value = tableModel.getValueAt(row, column);
+        return value == null ? "" : value.toString();
+    }
+
+    private void showDatabaseError(String action, SQLException exception) {
+        JOptionPane.showMessageDialog(
+                this,
+                action + ": " + exception.getMessage(),
+                "Database Error",
+                JOptionPane.ERROR_MESSAGE
+        );
     }
 }

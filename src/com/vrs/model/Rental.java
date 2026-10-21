@@ -1,4 +1,4 @@
-Rental =  package com.vrs.model;
+ package com.vrs.model;
 
 public class Rental {
     private int rentalId;
