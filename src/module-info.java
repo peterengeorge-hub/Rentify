@@ -5,6 +5,7 @@
  * 
  */
 module VehicleRentalSystem {
-	 requires java.sql;
-	 requires java.desktop;
+	
+	requires java.desktop;
+	requires java.sql;
 }
